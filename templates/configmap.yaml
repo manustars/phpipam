@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "phpipam.fullname" . }}-config
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "phpipam.labels" . | nindent 4 }}
+data:
+  TZ: {{ .Values.app.timezone | quote }}
+  IPAM_DATABASE_HOST: {{ include "phpipam.databaseHost" . | quote }}
+  IPAM_DATABASE_PORT: {{ .Values.database.port | toString | quote }}
+  IPAM_DATABASE_NAME: {{ .Values.database.name | quote }}
+  IPAM_DATABASE_USER: {{ .Values.database.user | quote }}
+  IPAM_DATABASE_WEBHOST: {{ .Values.database.webHost | quote }}
+  IPAM_BASE: {{ .Values.app.base | quote }}
+  IPAM_TRUST_X_FORWARDED: {{ .Values.app.trustXForwardedFor | toString | quote }}
+  IPAM_DISABLE_INSTALLER: {{ .Values.app.disableInstaller | toString | quote }}
+  IPAM_DEBUG: {{ .Values.app.debug | toString | quote }}
+  OFFLINE_MODE: {{ .Values.app.offlineMode | toString | quote }}
+  SCAN_INTERVAL: {{ .Values.cron.scanInterval | quote }}
+  {{- if .Values.app.proxy.enabled }}
+  PROXY_ENABLED: "true"
+  PROXY_SERVER: {{ .Values.app.proxy.server | quote }}
+  PROXY_PORT: {{ .Values.app.proxy.port | toString | quote }}
+  PROXY_USE_AUTH: {{ .Values.app.proxy.useAuth | toString | quote }}
+  {{- if .Values.app.proxy.user }}
+  PROXY_USER: {{ .Values.app.proxy.user | quote }}
+  {{- end }}
+  {{- end }}

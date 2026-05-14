@@ -1,0 +1,68 @@
+Thank you for installing {{ .Chart.Name }} v{{ .Chart.AppVersion }}!
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+phpIPAM is available at:
+{{- if $.Values.ingress.tls }}
+  https://{{ .host }}{{ (index .paths 0).path }}
+{{- else }}
+  http://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- end }}
+{{- else if eq .Values.service.type "NodePort" }}
+phpIPAM is running. Access it via NodePort:
+
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "phpipam.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+
+{{- else if eq .Values.service.type "LoadBalancer" }}
+phpIPAM is running. Wait for the LoadBalancer IP:
+
+  kubectl get svc --namespace {{ .Release.Namespace }} {{ include "phpipam.fullname" . }} --watch
+
+{{- else }}
+phpIPAM is running as ClusterIP. To access it locally:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "phpipam.fullname" . }} 8080:{{ .Values.service.port }}
+  Open: http://127.0.0.1:8080
+
+{{- end }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FIRST-TIME SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Open the URL above and run the web installer.
+2. Use the database credentials:
+     Host:     {{ include "phpipam.databaseHost" . }}
+     Database: {{ .Values.database.name }}
+     User:     {{ .Values.database.user }}
+
+3. After setup, set app.disableInstaller=true in values and upgrade:
+     helm upgrade {{ .Release.Name }} {{ .Chart.Name }} --set app.disableInstaller=true
+
+{{- if .Values.autoscaling.enabled }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MULTI-REPLICA NOTICE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HPA is enabled (min={{ .Values.autoscaling.minReplicas }}, max={{ .Values.autoscaling.maxReplicas }}).
+For consistent PHP sessions across replicas, configure phpIPAM to use
+database session storage: set $session_storage = "database"; in config.php.
+Shared volumes (logo, ca) also require ReadWriteMany storage class.
+{{- end }}
+
+{{- if not .Values.mariadb.enabled }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXTERNAL DATABASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Using external database at: {{ .Values.database.host }}:{{ .Values.database.port }}
+Ensure the database "{{ .Values.database.name }}" exists and user "{{ .Values.database.user }}"
+has full privileges, e.g.:
+  CREATE DATABASE {{ .Values.database.name }};
+  GRANT ALL ON {{ .Values.database.name }}.* TO '{{ .Values.database.user }}'@'%';
+{{- end }}
+
+Check pod status:
+  kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/instance={{ .Release.Name }}"

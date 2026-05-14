@@ -1,0 +1,122 @@
+{{- if .Values.cron.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "phpipam.fullname" . }}-cron
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "phpipam.cron.labels" . | nindent 4 }}
+spec:
+  ## Cron MUST run as a single replica to avoid duplicate discovery jobs
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "phpipam.cron.selectorLabels" . | nindent 6 }}
+  ## Recreate ensures old pod is fully terminated before new one starts
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "phpipam.cron.selectorLabels" . | nindent 8 }}
+        {{- with .Values.cron.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.cron.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- $pullSecrets := concat (.Values.global.imagePullSecrets | default list) (.Values.imagePullSecrets | default list) }}
+      {{- if $pullSecrets }}
+      imagePullSecrets:
+        {{- range $pullSecrets }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      serviceAccountName: {{ include "phpipam.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      {{- with .Values.cron.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.cron.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: cron
+          image: {{ include "phpipam.cron.image" . }}
+          imagePullPolicy: {{ .Values.cron.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "phpipam.fullname" . }}-config
+          env:
+            - name: IPAM_DATABASE_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "phpipam.secretName" . }}
+                  key: {{ include "phpipam.secretPasswordKey" . }}
+            {{- if .Values.app.proxy.enabled }}
+            - name: PROXY_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.app.proxy.existingSecret }}{{ .Values.app.proxy.existingSecret }}{{ else }}{{ include "phpipam.secretName" . }}{{ end }}
+                  key: {{ if .Values.app.proxy.existingSecret }}{{ .Values.app.proxy.existingSecretPasswordKey }}{{ else }}proxy-password{{ end }}
+            {{- end }}
+            {{- with .Values.cron.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.cron.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.cron.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if or .Values.persistence.logo.enabled .Values.persistence.ca.enabled .Values.cron.extraVolumeMounts }}
+          volumeMounts:
+            {{- if .Values.persistence.logo.enabled }}
+            - name: logo
+              mountPath: /phpipam/css/images/logo
+            {{- end }}
+            {{- if .Values.persistence.ca.enabled }}
+            - name: ca
+              mountPath: /usr/local/share/ca-certificates
+            {{- end }}
+            {{- with .Values.cron.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.persistence.logo.enabled .Values.persistence.ca.enabled .Values.cron.extraVolumes }}
+      volumes:
+        {{- if .Values.persistence.logo.enabled }}
+        - name: logo
+          persistentVolumeClaim:
+            claimName: {{ include "phpipam.logoPvcName" . }}
+        {{- end }}
+        {{- if .Values.persistence.ca.enabled }}
+        - name: ca
+          persistentVolumeClaim:
+            claimName: {{ include "phpipam.caPvcName" . }}
+        {{- end }}
+        {{- with .Values.cron.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.cron.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.cron.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.cron.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

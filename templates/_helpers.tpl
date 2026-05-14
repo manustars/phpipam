@@ -1,0 +1,192 @@
+{{/*
+Expand the name of the chart.
+*/}}
+{{- define "phpipam.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Create a default fully qualified app name.
+We truncate at 63 chars because some Kubernetes name fields are limited to this.
+*/}}
+{{- define "phpipam.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create chart name and version as used by the chart label.
+*/}}
+{{- define "phpipam.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Common labels — applied to every resource.
+*/}}
+{{- define "phpipam.labels" -}}
+helm.sh/chart: {{ include "phpipam.chart" . }}
+{{ include "phpipam.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels — used in matchLabels / selector.
+*/}}
+{{- define "phpipam.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "phpipam.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Web component labels.
+*/}}
+{{- define "phpipam.web.labels" -}}
+{{ include "phpipam.labels" . }}
+app.kubernetes.io/component: web
+{{- end }}
+
+{{/*
+Web component selector labels.
+*/}}
+{{- define "phpipam.web.selectorLabels" -}}
+{{ include "phpipam.selectorLabels" . }}
+app.kubernetes.io/component: web
+{{- end }}
+
+{{/*
+Cron component labels.
+*/}}
+{{- define "phpipam.cron.labels" -}}
+{{ include "phpipam.labels" . }}
+app.kubernetes.io/component: cron
+{{- end }}
+
+{{/*
+Cron component selector labels.
+*/}}
+{{- define "phpipam.cron.selectorLabels" -}}
+{{ include "phpipam.selectorLabels" . }}
+app.kubernetes.io/component: cron
+{{- end }}
+
+{{/*
+Service account name.
+*/}}
+{{- define "phpipam.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "phpipam.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Database host — uses bitnami mariadb service name when subchart is enabled,
+otherwise requires database.host to be set explicitly.
+*/}}
+{{- define "phpipam.databaseHost" -}}
+{{- if .Values.database.host }}
+{{- .Values.database.host }}
+{{- else if .Values.mariadb.enabled }}
+{{- printf "%s-mariadb" .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- fail "database.host is required when mariadb.enabled is false" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Database password secret name.
+*/}}
+{{- define "phpipam.secretName" -}}
+{{- if .Values.database.existingSecret }}
+{{- .Values.database.existingSecret }}
+{{- else }}
+{{- printf "%s-db-credentials" (include "phpipam.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Database password key inside the secret.
+*/}}
+{{- define "phpipam.secretPasswordKey" -}}
+{{- if .Values.database.existingSecret -}}
+{{- .Values.database.existingSecretPasswordKey -}}
+{{- else -}}
+{{- "database-password" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Web image (resolves global registry override).
+*/}}
+{{- define "phpipam.web.image" -}}
+{{- $registry := coalesce .Values.global.imageRegistry .Values.web.image.registry "docker.io" }}
+{{- printf "%s/%s:%s" $registry .Values.web.image.repository .Values.web.image.tag }}
+{{- end }}
+
+{{/*
+Cron image (resolves global registry override).
+*/}}
+{{- define "phpipam.cron.image" -}}
+{{- $registry := coalesce .Values.global.imageRegistry .Values.cron.image.registry "docker.io" }}
+{{- printf "%s/%s:%s" $registry .Values.cron.image.repository .Values.cron.image.tag }}
+{{- end }}
+
+{{/*
+Merged imagePullSecrets from global and local scopes.
+*/}}
+{{- define "phpipam.imagePullSecrets" -}}
+{{- $secrets := concat (.Values.global.imagePullSecrets | default list) (.Values.imagePullSecrets | default list) }}
+{{- if $secrets }}
+imagePullSecrets:
+  {{- range $secrets }}
+  - name: {{ . }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Logo PVC name.
+*/}}
+{{- define "phpipam.logoPvcName" -}}
+{{- if .Values.persistence.logo.existingClaim }}
+{{- .Values.persistence.logo.existingClaim }}
+{{- else }}
+{{- printf "%s-logo" (include "phpipam.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+CA certificates PVC name.
+*/}}
+{{- define "phpipam.caPvcName" -}}
+{{- if .Values.persistence.ca.existingClaim }}
+{{- .Values.persistence.ca.existingClaim }}
+{{- else }}
+{{- printf "%s-ca" (include "phpipam.fullname" .) }}
+{{- end }}
+{{- end }}
+
+{{/*
+StorageClass — resolves global then local override.
+*/}}
+{{- define "phpipam.storageClass" -}}
+{{- $sc := coalesce .local .global "" }}
+{{- if $sc }}
+storageClass: {{ $sc | quote }}
+{{- else }}
+storageClass: ""
+{{- end }}
+{{- end }}

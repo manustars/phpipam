@@ -1,0 +1,97 @@
+{{- if .Values.networkPolicy.enabled }}
+## NetworkPolicy for phpIPAM web pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "phpipam.fullname" . }}-web
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "phpipam.web.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "phpipam.web.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.networkPolicy.allowExternal }}
+    ## Allow traffic from any source to the web pods
+    - ports:
+        - port: http
+          protocol: TCP
+    {{- else }}
+    ## Allow traffic only from pods in the same namespace
+    - from:
+        - podSelector: {}
+      ports:
+        - port: http
+          protocol: TCP
+    {{- end }}
+    {{- if .Values.networkPolicy.additionalIngress }}
+    {{- toYaml .Values.networkPolicy.additionalIngress | nindent 4 }}
+    {{- end }}
+  egress:
+    ## Allow DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    ## Allow access to MariaDB
+    - ports:
+        - port: {{ .Values.database.port }}
+          protocol: TCP
+    ## Allow outbound HTTP/HTTPS for phpIPAM features (vendor lookups, updates, etc.)
+    - ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+    {{- if .Values.networkPolicy.additionalEgress }}
+    {{- toYaml .Values.networkPolicy.additionalEgress | nindent 4 }}
+    {{- end }}
+---
+{{- if .Values.cron.enabled }}
+## NetworkPolicy for phpIPAM cron pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "phpipam.fullname" . }}-cron
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "phpipam.cron.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "phpipam.cron.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    ## Allow DNS resolution
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    ## Allow access to MariaDB
+    - ports:
+        - port: {{ .Values.database.port }}
+          protocol: TCP
+    ## Allow ICMP / SNMP targets (network scanning)
+    - ports:
+        - port: 161
+          protocol: UDP
+    ## Allow HTTP/HTTPS for external resources
+    - ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+    {{- if .Values.networkPolicy.additionalEgress }}
+    {{- toYaml .Values.networkPolicy.additionalEgress | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}

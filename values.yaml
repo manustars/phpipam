@@ -1,0 +1,381 @@
+## @section Global parameters
+global:
+  ## @param global.imageRegistry Global Docker image registry override
+  imageRegistry: ""
+  ## @param global.imagePullSecrets Global Docker registry secret names
+  imagePullSecrets: []
+  ## @param global.storageClass Global StorageClass for Persistent Volumes
+  storageClass: ""
+
+## @section Common parameters
+## @param nameOverride Override chart name
+nameOverride: ""
+## @param fullnameOverride Override fully qualified app name
+fullnameOverride: ""
+
+## @section phpIPAM web image
+web:
+  image:
+    ## @param web.image.registry Docker registry for phpipam-www image
+    registry: docker.io
+    ## @param web.image.repository phpIPAM web image repository
+    repository: phpipam/phpipam-www
+    ## @param web.image.tag phpIPAM web image tag
+    tag: "latest"
+    ## @param web.image.pullPolicy Image pull policy
+    pullPolicy: IfNotPresent
+
+  ## @param web.replicaCount Number of web replicas
+  ## NOTE: For multiple replicas you need ReadWriteMany storage and database session storage
+  replicaCount: 1
+
+  ## @param web.podAnnotations Annotations for web pods
+  podAnnotations: {}
+
+  ## @param web.podLabels Extra labels for web pods
+  podLabels: {}
+
+  ## Security context at pod level
+  podSecurityContext:
+    ## @param web.podSecurityContext.fsGroup Group ID for volume mounts
+    fsGroup: 33
+
+  ## Container-level security context
+  ## NOTE: phpIPAM requires allowPrivilegeEscalation=true and NET_ADMIN/NET_RAW for ping/SNMP
+  containerSecurityContext:
+    ## @param web.containerSecurityContext.allowPrivilegeEscalation Required for NET_ADMIN/NET_RAW capabilities
+    allowPrivilegeEscalation: true
+    capabilities:
+      add:
+        - NET_ADMIN
+        - NET_RAW
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: false
+
+  ## @param web.resources Resource requests and limits for web container
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  ## Liveness probe configuration
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  ## Readiness probe configuration
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  ## @param web.nodeSelector Node labels for pod assignment
+  nodeSelector: {}
+
+  ## @param web.tolerations Tolerations for pod assignment
+  tolerations: []
+
+  ## @param web.affinity Affinity for pod assignment
+  affinity: {}
+
+  ## @param web.topologySpreadConstraints Topology spread constraints
+  topologySpreadConstraints: []
+
+  ## @param web.priorityClassName Priority class name
+  priorityClassName: ""
+
+  ## @param web.extraEnv Extra environment variables for web container
+  extraEnv: []
+  ## e.g.:
+  ## - name: MY_VAR
+  ##   value: "my-value"
+
+  ## @param web.extraVolumes Extra volumes for web pod
+  extraVolumes: []
+
+  ## @param web.extraVolumeMounts Extra volume mounts for web container
+  extraVolumeMounts: []
+
+## @section phpIPAM cron image
+cron:
+  image:
+    ## @param cron.image.registry Docker registry for phpipam-cron image
+    registry: docker.io
+    ## @param cron.image.repository phpIPAM cron image repository
+    repository: phpipam/phpipam-cron
+    ## @param cron.image.tag phpIPAM cron image tag
+    tag: "latest"
+    ## @param cron.image.pullPolicy Image pull policy
+    pullPolicy: IfNotPresent
+
+  ## @param cron.enabled Enable the cron deployment for network discovery
+  enabled: true
+
+  ## @param cron.scanInterval Network discovery scan interval (e.g. 1h, 15m)
+  scanInterval: "1h"
+
+  ## @param cron.podAnnotations Annotations for cron pods
+  podAnnotations: {}
+
+  ## @param cron.podLabels Extra labels for cron pods
+  podLabels: {}
+
+  ## Security context at pod level
+  podSecurityContext:
+    fsGroup: 33
+
+  ## Container-level security context (same requirements as web)
+  containerSecurityContext:
+    allowPrivilegeEscalation: true
+    capabilities:
+      add:
+        - NET_ADMIN
+        - NET_RAW
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+    runAsNonRoot: false
+
+  ## @param cron.resources Resource requests and limits for cron container
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+  ## @param cron.nodeSelector Node labels for pod assignment
+  nodeSelector: {}
+
+  ## @param cron.tolerations Tolerations for pod assignment
+  tolerations: []
+
+  ## @param cron.affinity Affinity for pod assignment
+  affinity: {}
+
+  ## @param cron.priorityClassName Priority class name
+  priorityClassName: ""
+
+  ## @param cron.extraEnv Extra environment variables for cron container
+  extraEnv: []
+
+  ## @param cron.extraVolumes Extra volumes for cron pod
+  extraVolumes: []
+
+  ## @param cron.extraVolumeMounts Extra volume mounts for cron container
+  extraVolumeMounts: []
+
+## @section Image pull secrets
+## @param imagePullSecrets Docker registry secret names
+imagePullSecrets: []
+
+## @section Service Account
+serviceAccount:
+  ## @param serviceAccount.create Create a service account
+  create: true
+  ## @param serviceAccount.automount Auto-mount the service account token
+  automount: false
+  ## @param serviceAccount.annotations Annotations for the service account
+  annotations: {}
+  ## @param serviceAccount.name Name of the service account (auto-generated if empty)
+  name: ""
+
+## @section Database configuration
+database:
+  ## @param database.host External database host (required when mariadb.enabled=false)
+  host: ""
+  ## @param database.port Database port
+  port: 3306
+  ## @param database.name Database name
+  name: phpipam
+  ## @param database.user Database username
+  user: phpipam
+  ## @param database.password Database password (ignored if existingSecret is set)
+  password: "phpipamadmin"
+  ## @param database.webHost MySQL allowed host for grant (use % for any pod IP)
+  webHost: "%"
+  ## @param database.existingSecret Name of existing secret with database credentials
+  ## The secret must contain the key defined in existingSecretPasswordKey
+  existingSecret: ""
+  ## @param database.existingSecretPasswordKey Key in existingSecret containing the password
+  existingSecretPasswordKey: "database-password"
+
+## @section Application configuration
+app:
+  ## @param app.timezone Application timezone (TZ)
+  timezone: "UTC"
+  ## @param app.base Application base path for reverse-proxy sub-path deployments
+  base: "/"
+  ## @param app.trustXForwardedFor Trust X-Forwarded-For header from reverse proxies
+  trustXForwardedFor: false
+  ## @param app.disableInstaller Disable the web-based installer (enable after first setup)
+  disableInstaller: false
+  ## @param app.debug Enable application debug mode
+  debug: false
+  ## @param app.offlineMode Restrict all internet requests
+  offlineMode: false
+
+  ## @param app.proxy.enabled Enable outbound proxy
+  proxy:
+    enabled: false
+    server: ""
+    port: ""
+    useAuth: false
+    user: ""
+    password: ""
+    existingSecret: ""
+    existingSecretPasswordKey: "proxy-password"
+
+## @section Service configuration
+service:
+  ## @param service.type Kubernetes service type
+  type: ClusterIP
+  ## @param service.port Service port
+  port: 80
+  ## @param service.nodePort NodePort value (only for type=NodePort)
+  nodePort: ""
+  ## @param service.annotations Service annotations
+  annotations: {}
+  ## @param service.loadBalancerIP LoadBalancer IP (only for type=LoadBalancer)
+  loadBalancerIP: ""
+  ## @param service.loadBalancerSourceRanges Allowed source IP ranges for LoadBalancer
+  loadBalancerSourceRanges: []
+
+## @section Ingress configuration
+ingress:
+  ## @param ingress.enabled Enable ingress
+  enabled: false
+  ## @param ingress.className Ingress class name
+  className: ""
+  ## @param ingress.annotations Ingress annotations
+  annotations: {}
+  ## e.g. for nginx:
+  ## nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+  ## cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    ## @param ingress.hosts[0].host Hostname to expose phpIPAM on
+    - host: phpipam.local
+      paths:
+        - path: /
+          pathType: Prefix
+  ## @param ingress.tls TLS configuration for ingress
+  tls: []
+  ## e.g.:
+  ## - secretName: phpipam-tls
+  ##   hosts:
+  ##     - phpipam.local
+
+## @section Persistence configuration
+persistence:
+  logo:
+    ## @param persistence.logo.enabled Enable persistence for custom logos
+    enabled: true
+    ## @param persistence.logo.storageClass StorageClass (uses global if empty)
+    storageClass: ""
+    ## @param persistence.logo.accessMode PVC access mode (use ReadWriteMany for multi-replica)
+    accessMode: ReadWriteOnce
+    ## @param persistence.logo.size PVC size
+    size: 1Gi
+    ## @param persistence.logo.existingClaim Existing PVC name (skips PVC creation)
+    existingClaim: ""
+    ## @param persistence.logo.annotations PVC annotations
+    annotations: {}
+
+  ca:
+    ## @param persistence.ca.enabled Enable persistence for custom CA certificates
+    enabled: true
+    ## @param persistence.ca.storageClass StorageClass (uses global if empty)
+    storageClass: ""
+    ## @param persistence.ca.accessMode PVC access mode (use ReadWriteMany for multi-replica)
+    accessMode: ReadWriteOnce
+    ## @param persistence.ca.size PVC size
+    size: 100Mi
+    ## @param persistence.ca.existingClaim Existing PVC name (skips PVC creation)
+    existingClaim: ""
+    ## @param persistence.ca.annotations PVC annotations
+    annotations: {}
+
+## @section Horizontal Pod Autoscaler
+autoscaling:
+  ## @param autoscaling.enabled Enable HPA for web deployment
+  ## NOTE: Requires web.replicaCount=1 as minimum; cron is always single replica
+  enabled: false
+  ## @param autoscaling.minReplicas Minimum web replicas
+  minReplicas: 1
+  ## @param autoscaling.maxReplicas Maximum web replicas
+  maxReplicas: 5
+  ## @param autoscaling.targetCPUUtilizationPercentage Target CPU utilization for scaling
+  targetCPUUtilizationPercentage: 80
+  ## @param autoscaling.targetMemoryUtilizationPercentage Target memory utilization for scaling
+  targetMemoryUtilizationPercentage: ""
+
+## @section Pod Disruption Budget
+podDisruptionBudget:
+  ## @param podDisruptionBudget.enabled Enable PDB for web deployment
+  enabled: false
+  ## @param podDisruptionBudget.minAvailable Minimum available pods (int or percentage)
+  minAvailable: 1
+  ## @param podDisruptionBudget.maxUnavailable Maximum unavailable pods (int or percentage)
+  maxUnavailable: ""
+
+## @section Network Policy
+networkPolicy:
+  ## @param networkPolicy.enabled Enable NetworkPolicy
+  enabled: false
+  ## @param networkPolicy.ingressRules.backendOnlyAccessibleByFrontend Restrict db access to web/cron only
+  ingressRules:
+    backendOnlyAccessibleByFrontend: true
+  ## @param networkPolicy.allowExternal Allow external access to web pods
+  allowExternal: true
+  ## @param networkPolicy.additionalIngress Extra ingress rules
+  additionalIngress: []
+  ## @param networkPolicy.additionalEgress Extra egress rules
+  additionalEgress: []
+
+## @section MariaDB subchart configuration
+## Full list of parameters: https://github.com/bitnami/charts/tree/main/bitnami/mariadb
+mariadb:
+  ## @param mariadb.enabled Deploy MariaDB using bitnami subchart
+  ## Set to false to use an external database (configure database.host)
+  enabled: true
+  auth:
+    ## @param mariadb.auth.database MariaDB database name (must match database.name)
+    database: phpipam
+    ## @param mariadb.auth.username MariaDB username (must match database.user)
+    username: phpipam
+    ## @param mariadb.auth.password MariaDB user password (must match database.password)
+    password: "phpipamadmin"
+    ## @param mariadb.auth.rootPassword MariaDB root password
+    rootPassword: "root-phpipamadmin"
+    ## @param mariadb.auth.existingSecret Use existing secret for MariaDB credentials
+    existingSecret: ""
+  primary:
+    persistence:
+      ## @param mariadb.primary.persistence.enabled Enable MariaDB data persistence
+      enabled: true
+      ## @param mariadb.primary.persistence.storageClass StorageClass for MariaDB
+      storageClass: ""
+      ## @param mariadb.primary.persistence.size MariaDB PVC size
+      size: 8Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
