@@ -347,35 +347,70 @@ networkPolicy:
   ## @param networkPolicy.additionalEgress Extra egress rules
   additionalEgress: []
 
-## @section MariaDB subchart configuration
-## Full list of parameters: https://github.com/bitnami/charts/tree/main/bitnami/mariadb
+## @section MariaDB (built-in container)
 mariadb:
-  ## @param mariadb.enabled Deploy MariaDB using bitnami subchart
-  ## Set to false to use an external database (configure database.host)
+  ## @param mariadb.enabled Deploy MariaDB as a container within this chart.
+  ## Set to false to use an external database — in that case database.host is required.
   enabled: true
+
+  image:
+    ## @param mariadb.image.registry MariaDB image registry
+    registry: docker.io
+    ## @param mariadb.image.repository MariaDB image repository
+    repository: mariadb
+    ## @param mariadb.image.tag MariaDB image tag
+    tag: "lts"
+    ## @param mariadb.image.pullPolicy Image pull policy
+    pullPolicy: IfNotPresent
+
   auth:
-    ## @param mariadb.auth.database MariaDB database name (must match database.name)
-    database: phpipam
-    ## @param mariadb.auth.username MariaDB username (must match database.user)
-    username: phpipam
-    ## @param mariadb.auth.password MariaDB user password (must match database.password)
-    password: "phpipamadmin"
     ## @param mariadb.auth.rootPassword MariaDB root password
     rootPassword: "root-phpipamadmin"
-    ## @param mariadb.auth.existingSecret Use existing secret for MariaDB credentials
+    ## @param mariadb.auth.existingSecret Existing secret containing the root password.
+    ## Must have the key defined in existingSecretRootPasswordKey.
+    ## The user password is always read from database.existingSecret / database.password.
     existingSecret: ""
-  primary:
-    persistence:
-      ## @param mariadb.primary.persistence.enabled Enable MariaDB data persistence
-      enabled: true
-      ## @param mariadb.primary.persistence.storageClass StorageClass for MariaDB
-      storageClass: ""
-      ## @param mariadb.primary.persistence.size MariaDB PVC size
-      size: 8Gi
-    resources:
-      requests:
-        cpu: 250m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
+    ## @param mariadb.auth.existingSecretRootPasswordKey Key for the root password in existingSecret
+    existingSecretRootPasswordKey: "mariadb-root-password"
+
+  persistence:
+    ## @param mariadb.persistence.enabled Enable data persistence with a PVC
+    enabled: true
+    ## @param mariadb.persistence.storageClass StorageClass for the PVC (uses global if empty)
+    storageClass: ""
+    ## @param mariadb.persistence.accessMode PVC access mode
+    accessMode: ReadWriteOnce
+    ## @param mariadb.persistence.size PVC size
+    size: 8Gi
+    ## @param mariadb.persistence.existingClaim Use an existing PVC (skips PVC creation)
+    existingClaim: ""
+    ## @param mariadb.persistence.annotations PVC annotations
+    annotations: {}
+
+  ## @param mariadb.resources Resource requests and limits
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  ## @param mariadb.podAnnotations Annotations for the MariaDB pod
+  podAnnotations: {}
+  ## @param mariadb.podLabels Extra labels for the MariaDB pod
+  podLabels: {}
+  ## @param mariadb.podSecurityContext Pod-level security context
+  podSecurityContext: {}
+  ## @param mariadb.containerSecurityContext Container-level security context
+  containerSecurityContext: {}
+  ## @param mariadb.nodeSelector Node labels for pod assignment
+  nodeSelector: {}
+  ## @param mariadb.tolerations Tolerations for pod assignment
+  tolerations: []
+  ## @param mariadb.affinity Affinity for pod assignment
+  affinity: {}
+  ## @param mariadb.args Extra arguments passed to the mariadb process
+  args: []
+  ## @param mariadb.extraEnv Extra environment variables for the MariaDB container
+  extraEnv: []

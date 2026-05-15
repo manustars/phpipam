@@ -1,0 +1,18 @@
+{{- if .Values.mariadb.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "phpipam.fullname" . }}-mariadb
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "phpipam.mariadb.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.database.port }}
+      targetPort: mysql
+      protocol: TCP
+      name: mysql
+  selector:
+    {{- include "phpipam.mariadb.selectorLabels" . | nindent 4 }}
+{{- end }}

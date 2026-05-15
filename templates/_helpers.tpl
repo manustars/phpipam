@@ -180,13 +180,58 @@ CA certificates PVC name.
 {{- end }}
 
 {{/*
-StorageClass — resolves global then local override.
+MariaDB component labels.
 */}}
-{{- define "phpipam.storageClass" -}}
-{{- $sc := coalesce .local .global "" }}
-{{- if $sc }}
-storageClass: {{ $sc | quote }}
-{{- else }}
-storageClass: ""
+{{- define "phpipam.mariadb.labels" -}}
+{{ include "phpipam.labels" . }}
+app.kubernetes.io/component: database
 {{- end }}
+
+{{/*
+MariaDB component selector labels.
+*/}}
+{{- define "phpipam.mariadb.selectorLabels" -}}
+{{ include "phpipam.selectorLabels" . }}
+app.kubernetes.io/component: database
+{{- end }}
+
+{{/*
+MariaDB image (resolves global registry override).
+*/}}
+{{- define "phpipam.mariadb.image" -}}
+{{- $registry := coalesce .Values.global.imageRegistry .Values.mariadb.image.registry "docker.io" -}}
+{{- printf "%s/%s:%s" $registry .Values.mariadb.image.repository .Values.mariadb.image.tag -}}
+{{- end }}
+
+{{/*
+MariaDB root-password secret name.
+*/}}
+{{- define "phpipam.mariadb.secretName" -}}
+{{- if .Values.mariadb.auth.existingSecret -}}
+{{- .Values.mariadb.auth.existingSecret -}}
+{{- else -}}
+{{- printf "%s-mariadb-credentials" (include "phpipam.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+MariaDB root-password key inside the secret.
+*/}}
+{{- define "phpipam.mariadb.secretRootPasswordKey" -}}
+{{- if .Values.mariadb.auth.existingSecret -}}
+{{- .Values.mariadb.auth.existingSecretRootPasswordKey -}}
+{{- else -}}
+{{- "mariadb-root-password" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+MariaDB data PVC name.
+*/}}
+{{- define "phpipam.mariadb.pvcName" -}}
+{{- if .Values.mariadb.persistence.existingClaim -}}
+{{- .Values.mariadb.persistence.existingClaim -}}
+{{- else -}}
+{{- printf "%s-mariadb-data" (include "phpipam.fullname" .) -}}
+{{- end -}}
 {{- end }}

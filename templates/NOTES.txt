@@ -52,7 +52,17 @@ database session storage: set $session_storage = "database"; in config.php.
 Shared volumes (logo, ca) also require ReadWriteMany storage class.
 {{- end }}
 
-{{- if not .Values.mariadb.enabled }}
+{{- if .Values.mariadb.enabled }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUILT-IN MARIADB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MariaDB is deployed as a container in this release.
+  Pod:     {{ include "phpipam.fullname" . }}-mariadb-<hash>
+  Service: {{ include "phpipam.fullname" . }}-mariadb:{{ .Values.database.port }}
+  DB:      {{ .Values.database.name }}
+
+{{- else }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXTERNAL DATABASE

@@ -17,8 +17,3 @@ keywords:
 annotations:
   artifacthub.io/category: networking
   artifacthub.io/license: GPL-3.0
-dependencies:
-  - name: mariadb
-    version: "19.x.x"
-    repository: "oci://registry-1.docker.io/bitnamicharts"
-    condition: mariadb.enabled
