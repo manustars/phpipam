@@ -1,33 +1,53 @@
 # phpIPAM Helm Chart
 
-A production-ready Helm chart for [phpIPAM](https://phpipam.net) — Open Source IP Address Management.
+[![Helm](https://img.shields.io/badge/Helm-%3E%3D3.12-0f1689?logo=helm)](https://helm.sh)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-%3E%3D1.23-326ce5?logo=kubernetes&logoColor=white)](https://kubernetes.io)
+[![phpIPAM](https://img.shields.io/badge/phpIPAM-1.8-4cae4c)](https://phpipam.net)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
+[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/phpipam)](https://artifacthub.io)
+
+A production-ready Helm chart for **[phpIPAM](https://phpipam.net)** — Open Source IP Address Management.
+
+---
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
-- [TL;DR](#tldr)
-- [Installing](#installing)
-- [Uninstalling](#uninstalling)
+- [Quick Start](#quick-start)
+- [Installing the Chart](#installing-the-chart)
+- [Uninstalling the Chart](#uninstalling-the-chart)
 - [Configuration](#configuration)
+  - [Global](#global)
+  - [Web Deployment](#web-deployment)
+  - [Cron Deployment](#cron-deployment)
+  - [Database](#database)
+  - [Application](#application)
+  - [Service](#service)
+  - [Ingress](#ingress)
+  - [Persistence](#persistence)
+  - [Built-in MariaDB](#built-in-mariadb)
+  - [Autoscaling, PDB, NetworkPolicy](#autoscaling-pdb-networkpolicy)
 - [Image Versioning](#image-versioning)
 - [Use Cases](#use-cases)
 - [Upgrading](#upgrading)
 - [Troubleshooting](#troubleshooting)
 - [Security Considerations](#security-considerations)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
 ## Overview
 
-This chart deploys phpIPAM on a Kubernetes cluster. It includes:
+This chart deploys phpIPAM on a Kubernetes cluster and includes:
 
 | Component | Description |
 |-----------|-------------|
-| **web** | Apache/PHP frontend (scalable, multiple replicas supported) |
-| **cron** | Network discovery daemon (always single replica) |
-| **mariadb** | Optional built-in MariaDB container (or point to an external DB) |
+| **web** | Apache/PHP frontend — scalable, supports multiple replicas |
+| **cron** | Network discovery daemon — always runs as a single replica |
+| **mariadb** | Optional built-in MariaDB container — or point to an external DB |
 
 ## Architecture
 
@@ -44,59 +64,57 @@ This chart deploys phpIPAM on a Kubernetes cluster. It includes:
               │         Deployment: web              │
               │      (N replicas, RollingUpdate)     │
               │   NET_ADMIN + NET_RAW capabilities   │
-              └──────────────────┬──────────────────┘
-                                 │
-              ┌──────────────────▼──────────────────┐
+              └──────────┬───────────────────────────┘
+                         │
+              ┌──────────▼───────────────────────────┐
               │         Deployment: cron             │
-              │      (1 replica, Recreate)           │
+              │      (1 replica enforced, Recreate)  │
               │   NET_ADMIN + NET_RAW capabilities   │
-              └──────────────────┬──────────────────┘
-                                 │
-               ┌─────────────────▼────────────────────┐
-               │  mariadb.enabled=true                 │
-               │    Deployment: mariadb  ──► PVC data  │
-               │    Service: mariadb                   │
-               ├───────────────────────────────────────┤
-               │  mariadb.enabled=false                │
-               │    External DB (database.host)        │
-               └───────────────────────────────────────┘
+              └──────────┬───────────────────────────┘
+                         │
+         ┌───────────────▼────────────────────────────────┐
+         │  mariadb.enabled = true                         │
+         │    Deployment: mariadb  ──►  PVC: mariadb-data  │
+         │    Service: mariadb                             │
+         ├────────────────────────────────────────────────┤
+         │  mariadb.enabled = false                        │
+         │    External database  (database.host required)  │
+         └────────────────────────────────────────────────┘
 ```
 
-> **Note:** phpIPAM requires `NET_ADMIN` and `NET_RAW` capabilities for ping and SNMP network
-> discovery. This means `allowPrivilegeEscalation: true` is mandatory and the chart is
-> incompatible with the Kubernetes `restricted` Pod Security Standard.
+> **Important:** phpIPAM requires `NET_ADMIN` and `NET_RAW` capabilities for ping/SNMP
+> network discovery. `allowPrivilegeEscalation: true` is therefore mandatory.
+> This chart is **incompatible with the Kubernetes `restricted` Pod Security Standard**.
 > Use the `baseline` PSS or a custom policy that allows these capabilities.
 
 ## Prerequisites
 
-| Requirement | Version |
-|-------------|---------|
-| Kubernetes  | ≥ 1.23  |
-| Helm        | ≥ 3.12  |
-| PV provisioner | Required if any `persistence.*.enabled=true` |
+| Requirement | Minimum version |
+|-------------|----------------|
+| Kubernetes | 1.23 |
+| Helm | 3.12 |
+| PersistentVolume provisioner | Required when any `persistence.*.enabled=true` |
 
-## TL;DR
+## Quick Start
 
 ```bash
-# Built-in MariaDB (default)
+# Using the built-in MariaDB (default)
 helm install phpipam . -n ipam --create-namespace
 
-# External database
+# Using an external database
 helm install phpipam . -n ipam --create-namespace \
   --set mariadb.enabled=false \
   --set database.host=mydb.internal \
   --set database.password=mysecret
 ```
 
-## Installing
+## Installing the Chart
 
-### 1. Prepare values
-
-Copy and edit the default values file:
+### 1. Prepare your values file
 
 ```bash
 cp values.yaml my-values.yaml
-# Edit my-values.yaml with your settings
+# Edit my-values.yaml — at minimum change the passwords
 ```
 
 ### 2. Install
@@ -110,23 +128,25 @@ helm install phpipam . \
 
 ### 3. First-time setup
 
-After installation, open phpIPAM in the browser and follow the web installer:
+Open phpIPAM in the browser and follow the web installer:
 
-1. Choose **"MySQL import instructions"** → **"Automatic database installation"**
-2. Enter the credentials shown in the post-install NOTES
-3. Once setup is complete, **disable the installer** to prevent re-running it:
+1. Choose **"Automatic database installation"**
+2. Enter the credentials from the `helm install` output notes
+3. After setup is complete, disable the installer:
 
 ```bash
 helm upgrade phpipam . --reuse-values --set app.disableInstaller=true
 ```
 
-## Uninstalling
+## Uninstalling the Chart
 
 ```bash
 helm uninstall phpipam -n ipam
 ```
 
-> **Warning:** PersistentVolumeClaims are **not** deleted automatically. Remove them manually if no longer needed:
+> **Warning:** PersistentVolumeClaims are **not** deleted automatically.
+> Remove them manually when no longer needed:
+>
 > ```bash
 > kubectl delete pvc -n ipam -l app.kubernetes.io/instance=phpipam
 > ```
@@ -139,122 +159,134 @@ helm uninstall phpipam -n ipam
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `global.imageRegistry` | Global registry override (useful for air-gapped clusters) | `""` |
+| `global.imageRegistry` | Global registry override — useful for air-gapped clusters | `""` |
 | `global.imagePullSecrets` | Global image pull secrets | `[]` |
 | `global.storageClass` | Global StorageClass for all PVCs | `""` |
 | `nameOverride` | Override the chart name | `""` |
 | `fullnameOverride` | Override the fully-qualified resource name | `""` |
 
-### Web Deployment (`web.*`)
+### Web Deployment
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `web.image.repository` | phpipam-www image | `phpipam/phpipam-www` |
-| `web.image.tag` | Image tag. Empty = `Chart.appVersion` | `""` |
-| `web.image.digest` | Image digest (overrides tag) | `""` |
+| `web.image.repository` | phpipam-www image repository | `phpipam/phpipam-www` |
+| `web.image.tag` | Image tag. Leave empty to track `Chart.appVersion` | `""` |
+| `web.image.digest` | Image digest — takes precedence over tag | `""` |
+| `web.image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `web.replicaCount` | Number of web pods | `1` |
-| `web.resources` | CPU/memory requests and limits | see values.yaml |
-| `web.containerSecurityContext` | Container security context | `allowPrivilegeEscalation: true, NET_ADMIN, NET_RAW` |
-| `web.livenessProbe` | Liveness probe configuration | HTTP GET `/` |
-| `web.readinessProbe` | Readiness probe configuration | HTTP GET `/` |
+| `web.resources` | CPU/memory requests and limits | see [values.yaml](values.yaml) |
+| `web.containerSecurityContext` | Container security context | `allowPrivilegeEscalation: true` + NET_ADMIN/NET_RAW |
+| `web.livenessProbe` | Liveness probe | HTTP GET `/` |
+| `web.readinessProbe` | Readiness probe | HTTP GET `/` |
 | `web.nodeSelector` | Node selector | `{}` |
 | `web.tolerations` | Tolerations | `[]` |
 | `web.affinity` | Affinity rules | `{}` |
 | `web.topologySpreadConstraints` | Topology spread constraints | `[]` |
 | `web.extraEnv` | Extra environment variables | `[]` |
+| `web.extraVolumes` | Extra volumes | `[]` |
+| `web.extraVolumeMounts` | Extra volume mounts | `[]` |
 
-### Cron Deployment (`cron.*`)
+### Cron Deployment
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `cron.enabled` | Deploy the network discovery cron | `true` |
-| `cron.image.repository` | phpipam-cron image | `phpipam/phpipam-cron` |
-| `cron.image.tag` | Image tag. Empty = `Chart.appVersion` | `""` |
-| `cron.image.digest` | Image digest (overrides tag) | `""` |
+| `cron.image.repository` | phpipam-cron image repository | `phpipam/phpipam-cron` |
+| `cron.image.tag` | Image tag. Leave empty to track `Chart.appVersion` | `""` |
+| `cron.image.digest` | Image digest — takes precedence over tag | `""` |
 | `cron.scanInterval` | Discovery scan interval | `1h` |
-| `cron.resources` | CPU/memory requests and limits | see values.yaml |
+| `cron.resources` | CPU/memory requests and limits | see [values.yaml](values.yaml) |
+| `cron.extraEnv` | Extra environment variables | `[]` |
 
-> The cron deployment is always `replicas: 1` with `strategy: Recreate`. This is enforced
-> by the chart and cannot be overridden — running multiple cron instances causes duplicate
-> discovery jobs.
+> The cron deployment is **always `replicas: 1`** with `strategy: Recreate`. This is
+> enforced by the chart — running multiple cron instances causes duplicate discovery jobs.
 
-### Database (`database.*`)
+### Database
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `database.host` | External DB host. Required when `mariadb.enabled=false` | `""` |
+| `database.host` | External DB host — required when `mariadb.enabled=false` | `""` |
 | `database.port` | DB port | `3306` |
 | `database.name` | DB name | `phpipam` |
 | `database.user` | DB username | `phpipam` |
-| `database.password` | DB password (ignored if `existingSecret` is set) | `phpipamadmin` |
+| `database.password` | DB password — ignored when `existingSecret` is set | `phpipamadmin` |
 | `database.webHost` | MySQL GRANT host (`%` = any pod IP) | `%` |
-| `database.existingSecret` | Existing secret name with DB password | `""` |
+| `database.existingSecret` | Name of an existing secret containing the password | `""` |
 | `database.existingSecretPasswordKey` | Key inside `existingSecret` | `database-password` |
 
-### Application (`app.*`)
+### Application
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `app.timezone` | Container timezone (`TZ`) | `UTC` |
+| `app.timezone` | Container timezone | `UTC` |
 | `app.base` | Base path for sub-path reverse proxy deployments | `/` |
 | `app.trustXForwardedFor` | Trust `X-Forwarded-For` header | `false` |
-| `app.disableInstaller` | Disable the web installer (set after first setup) | `false` |
+| `app.disableInstaller` | Disable the web installer after first setup | `false` |
 | `app.debug` | Enable debug mode | `false` |
-| `app.offlineMode` | Block all internet requests | `false` |
-| `app.proxy.*` | Outbound HTTP proxy settings | see values.yaml |
+| `app.offlineMode` | Block all outbound internet requests | `false` |
+| `app.proxy.enabled` | Enable outbound HTTP proxy | `false` |
+| `app.proxy.server` | Proxy host | `""` |
+| `app.proxy.port` | Proxy port | `""` |
 
-### Service (`service.*`)
+### Service
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `service.type` | `ClusterIP`, `NodePort`, `LoadBalancer` | `ClusterIP` |
+| `service.type` | `ClusterIP`, `NodePort`, or `LoadBalancer` | `ClusterIP` |
 | `service.port` | Service port | `80` |
-| `service.nodePort` | NodePort value (only for `NodePort` type) | `""` |
+| `service.nodePort` | NodePort value — only for `NodePort` type | `""` |
 | `service.annotations` | Service annotations | `{}` |
+| `service.loadBalancerIP` | Load balancer IP — only for `LoadBalancer` type | `""` |
 
-### Ingress (`ingress.*`)
+### Ingress
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `ingress.enabled` | Enable Ingress | `false` |
-| `ingress.className` | Ingress class name | `""` |
+| `ingress.className` | IngressClass name | `""` |
 | `ingress.annotations` | Ingress annotations | `{}` |
-| `ingress.hosts` | Hostnames and paths | see values.yaml |
+| `ingress.hosts` | Hostname and path rules | see [values.yaml](values.yaml) |
 | `ingress.tls` | TLS configuration | `[]` |
 
-### Persistence (`persistence.*`)
+### Persistence
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `persistence.logo.enabled` | Persist custom logos | `true` |
 | `persistence.logo.size` | PVC size | `1Gi` |
 | `persistence.logo.accessMode` | PVC access mode | `ReadWriteOnce` |
+| `persistence.logo.storageClass` | StorageClass override | `""` |
 | `persistence.logo.existingClaim` | Use an existing PVC | `""` |
 | `persistence.ca.enabled` | Persist custom CA certificates | `true` |
 | `persistence.ca.size` | PVC size | `100Mi` |
+| `persistence.ca.accessMode` | PVC access mode | `ReadWriteOnce` |
 | `persistence.ca.existingClaim` | Use an existing PVC | `""` |
 
-> For multi-replica web deployments, set `accessMode: ReadWriteMany` and use a storage class
-> that supports it (e.g. NFS, CephFS, Azure Files, EFS).
+> For multi-replica web deployments, set `accessMode: ReadWriteMany` on both PVCs
+> and use a StorageClass that supports it (NFS, CephFS, Azure Files, AWS EFS, etc.).
 
-### Built-in MariaDB (`mariadb.*`)
+### Built-in MariaDB
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `mariadb.enabled` | Deploy MariaDB as a container | `true` |
-| `mariadb.image.repository` | MariaDB image | `mariadb` |
+| `mariadb.enabled` | Deploy MariaDB as a container within this chart | `true` |
+| `mariadb.image.repository` | MariaDB image repository | `mariadb` |
 | `mariadb.image.tag` | MariaDB image tag | `lts` |
-| `mariadb.image.digest` | Image digest (overrides tag) | `""` |
+| `mariadb.image.digest` | Image digest — takes precedence over tag | `""` |
 | `mariadb.auth.rootPassword` | MariaDB root password | `root-phpipamadmin` |
-| `mariadb.auth.existingSecret` | Existing secret with root password | `""` |
+| `mariadb.auth.existingSecret` | Existing secret with the root password | `""` |
+| `mariadb.auth.existingSecretRootPasswordKey` | Key inside `existingSecret` | `mariadb-root-password` |
 | `mariadb.persistence.enabled` | Persist MariaDB data | `true` |
 | `mariadb.persistence.size` | PVC size | `8Gi` |
+| `mariadb.persistence.storageClass` | StorageClass override | `""` |
 | `mariadb.persistence.existingClaim` | Use an existing PVC | `""` |
-| `mariadb.resources` | CPU/memory requests and limits | see values.yaml |
+| `mariadb.resources` | CPU/memory requests and limits | see [values.yaml](values.yaml) |
+| `mariadb.args` | Extra arguments passed to the MariaDB process | `[]` |
+| `mariadb.extraEnv` | Extra environment variables for the MariaDB container | `[]` |
 
-> The user password (`MARIADB_PASSWORD`) is always sourced from `database.password` /
-> `database.existingSecret` — it is the single source of truth shared between the MariaDB
-> container and the phpIPAM web/cron containers.
+> `database.password` is the **single source of truth** for the DB user password.
+> It is used by both the MariaDB container (`MARIADB_PASSWORD`) and the phpIPAM
+> web/cron containers (`IPAM_DATABASE_PASS`).
 
 ### Autoscaling, PDB, NetworkPolicy
 
@@ -263,46 +295,50 @@ helm uninstall phpipam -n ipam
 | `autoscaling.enabled` | Enable HPA for web pods | `false` |
 | `autoscaling.minReplicas` | Minimum replicas | `1` |
 | `autoscaling.maxReplicas` | Maximum replicas | `5` |
-| `autoscaling.targetCPUUtilizationPercentage` | CPU target | `80` |
+| `autoscaling.targetCPUUtilizationPercentage` | CPU scale target | `80` |
 | `podDisruptionBudget.enabled` | Enable PDB for web pods | `false` |
-| `podDisruptionBudget.minAvailable` | Min available pods | `1` |
+| `podDisruptionBudget.minAvailable` | Minimum available pods | `1` |
 | `networkPolicy.enabled` | Enable NetworkPolicy | `false` |
-| `networkPolicy.allowExternal` | Allow external traffic to web pods | `true` |
+| `networkPolicy.allowExternal` | Allow external traffic to reach web pods | `true` |
 
 ---
 
 ## Image Versioning
 
-The chart implements a three-tier image resolution for `web` and `cron`:
+The chart resolves `web` and `cron` images in this priority order:
 
 ```
-digest (sha256:...)   ← highest priority, immutable
-    ↓ (if empty)
-tag   (e.g. "1.8")   ← explicit override
-    ↓ (if empty)
-Chart.appVersion      ← default, in sync with chart release
+digest (sha256:...)        ←  highest priority — immutable, recommended for production
+    ↓ if empty
+tag   (e.g. "1.8")         ←  explicit version pin
+    ↓ if empty
+Chart.appVersion ("1.8")   ←  default, updated with each chart release
 ```
 
-### Pin to a specific phpIPAM version
+The `mariadb` image always requires an explicit tag (`lts`, `11.4`, `10.11`, …) because
+its versioning is independent of phpIPAM.
+
+### Pin web and cron to a specific phpIPAM version
 
 ```yaml
-# values.yaml
 web:
   image:
-    tag: "1.8"          # or "1.7", "latest", "nightly"
+    tag: "1.8"
 
 cron:
   image:
-    tag: "1.8"          # keep in sync with web
+    tag: "1.8"
 ```
+
+Supported tags: `latest`, `nightly`, `1.8`, `1.7`, `v1.8.x` (static snapshots).
 
 ### Pin to an immutable digest (recommended for production)
 
 ```bash
-# Get the digest
+# Retrieve the digest
 docker pull phpipam/phpipam-www:1.8
 docker inspect phpipam/phpipam-www:1.8 --format='{{index .RepoDigests 0}}'
-# → phpipam/phpipam-www@sha256:abc123...
+# phpipam/phpipam-www@sha256:abc123...
 ```
 
 ```yaml
@@ -314,26 +350,20 @@ cron:
     digest: "sha256:def456..."
 ```
 
-### Upgrade phpIPAM version
+### Upgrade phpIPAM to a new version
 
-1. Update `appVersion` in `Chart.yaml` (and bump `version`)
-2. Set `web.image.tag: ""` and `cron.image.tag: ""` to follow the new appVersion
-3. Run `helm upgrade`
+1. Update `appVersion` in `Chart.yaml` and bump `version` following semver.
+2. Leave `web.image.tag` and `cron.image.tag` empty — they will follow `appVersion`.
+3. Run `helm upgrade`.
 
 ---
 
 ## Use Cases
 
-### Minimal — built-in MariaDB (default)
-
-```bash
-helm install phpipam . -n ipam --create-namespace
-```
-
 ### External database
 
 ```yaml
-# my-values.yaml
+# values.yaml
 mariadb:
   enabled: false
 
@@ -345,11 +375,7 @@ database:
   password: "mysecretpassword"
 ```
 
-```bash
-helm install phpipam . -n ipam --create-namespace -f my-values.yaml
-```
-
-### External DB with existing Kubernetes secret
+### External DB with an existing Kubernetes secret
 
 ```bash
 kubectl create secret generic phpipam-db-secret -n ipam \
@@ -366,7 +392,7 @@ database:
   existingSecretPasswordKey: "database-password"
 ```
 
-### Ingress with TLS (cert-manager)
+### Ingress with TLS via cert-manager
 
 ```yaml
 ingress:
@@ -392,6 +418,7 @@ app:
 ### Multi-replica web with HPA
 
 > Requires `ReadWriteMany` storage and database session storage configured in phpIPAM.
+> Set `$session_storage = "database";` in phpIPAM's `config.php` after the first install.
 
 ```yaml
 web:
@@ -416,51 +443,40 @@ podDisruptionBudget:
   minAvailable: 1
 ```
 
-After scaling up, configure phpIPAM to use database session storage:
-set `$session_storage = "database";` in phpIPAM's `config.php`.
-
 ### Air-gapped / private registry
 
 ```yaml
 global:
   imageRegistry: registry.internal.example.com
   imagePullSecrets:
-    - internal-registry-secret
+    - name: internal-registry-secret
 
 web:
   image:
-    tag: "1.8"      # explicit tag required when using private mirrors
+    tag: "1.8"
 
 cron:
   image:
     tag: "1.8"
-
-mariadb:
-  image:
-    tag: "lts"
 ```
 
 ---
 
 ## Upgrading
 
-### General upgrade procedure
+Refer to [CHANGELOG.md](CHANGELOG.md) for breaking changes before upgrading.
+
+### General upgrade
 
 ```bash
 helm upgrade phpipam . --namespace ipam --reuse-values
 ```
 
-Always check the [CHANGELOG](CHANGELOG.md) before upgrading.
+### Upgrading phpIPAM (application version)
 
-### Chart 0.x → future breaking changes
-
-Breaking changes will be documented in [CHANGELOG.md](CHANGELOG.md) with migration steps.
-
-### Upgrading phpIPAM (application)
-
-1. Check the [phpIPAM release notes](https://phpipam.net/news/) for database migrations.
-2. **Backup the database** before upgrading.
-3. Update the image tag and upgrade:
+1. Read the [phpIPAM release notes](https://phpipam.net/news/) for any required database migrations.
+2. **Back up the database** before proceeding.
+3. Upgrade with the new version:
 
 ```bash
 helm upgrade phpipam . --namespace ipam --reuse-values \
@@ -468,22 +484,21 @@ helm upgrade phpipam . --namespace ipam --reuse-values \
   --set cron.image.tag=1.8
 ```
 
-4. phpIPAM runs database migrations automatically on first boot after a version upgrade.
+phpIPAM runs database migrations automatically on the first boot after a version change.
 
 ---
 
 ## Troubleshooting
 
-### Pods not starting — `NET_ADMIN` / `NET_RAW`
+### Pods rejected — `NET_ADMIN` / `NET_RAW` capabilities
 
-phpIPAM requires elevated network capabilities. If your cluster enforces the `restricted`
-Pod Security Standard, pods will be rejected.
+If your cluster enforces the `restricted` Pod Security Standard, phpIPAM pods will fail admission.
 
 ```bash
-kubectl describe pod -n ipam <pod-name> | grep -A5 "Warning\|Error"
+kubectl describe pod -n ipam <pod-name> | grep -A5 "Warning\|Forbidden"
 ```
 
-**Fix:** Apply the `baseline` PSS to the namespace, or add a specific exemption:
+**Fix:** Apply the `baseline` PSS to the namespace:
 
 ```bash
 kubectl label namespace ipam \
@@ -491,38 +506,40 @@ kubectl label namespace ipam \
   pod-security.kubernetes.io/warn=baseline
 ```
 
-### Web installer fails — cannot connect to database
+### Cannot connect to the database
 
 ```bash
-# Check MariaDB is running and ready
+# Check that MariaDB is ready
 kubectl get pods -n ipam -l app.kubernetes.io/component=database
 
 # Check MariaDB logs
 kubectl logs -n ipam deployment/phpipam-mariadb
 
-# Check the credentials match
-kubectl get secret phpipam-db-credentials -n ipam -o jsonpath='{.data.database-password}' | base64 -d
+# Verify the password in the secret
+kubectl get secret phpipam-db-credentials -n ipam \
+  -o jsonpath='{.data.database-password}' | base64 -d
 ```
 
-### Pods restart after config change
+### Pods restart after a config or secret change
 
-This is expected: the chart annotates pods with `checksum/configmap` and `checksum/secret`.
-When you change any configuration value, pods roll automatically to pick up the new config.
+This is expected behaviour. The chart annotates pods with checksums of the ConfigMap and
+Secret. Any value change triggers an automatic rolling restart so pods always run with
+the latest configuration.
 
-### PVC in Pending state
+### PVC stuck in `Pending`
 
 ```bash
 kubectl describe pvc -n ipam phpipam-mariadb-data
 ```
 
-Check that your cluster has a default StorageClass or set `global.storageClass`:
+Ensure a default StorageClass exists, or set one explicitly:
 
 ```bash
 kubectl get storageclass
 helm upgrade phpipam . --reuse-values --set global.storageClass=standard
 ```
 
-### phpIPAM reports wrong source IP behind a reverse proxy
+### phpIPAM reports the wrong source IP behind a reverse proxy
 
 Set `app.trustXForwardedFor: true` to enable `IPAM_TRUST_X_FORWARDED`.
 
@@ -530,13 +547,32 @@ Set `app.trustXForwardedFor: true` to enable `IPAM_TRUST_X_FORWARDED`.
 
 ## Security Considerations
 
-| Area | Guidance |
-|------|----------|
-| **Default passwords** | Always override `database.password` and `mariadb.auth.rootPassword` in production |
-| **Existing secrets** | Use `database.existingSecret` and `mariadb.auth.existingSecret` to keep credentials out of `values.yaml` |
-| **Image pinning** | Pin images to a digest (`web.image.digest`) for immutable, auditable deployments |
-| **Installer** | Set `app.disableInstaller: true` after first setup |
-| **Network** | Enable `networkPolicy.enabled: true` to restrict traffic between components |
-| **Capabilities** | `NET_ADMIN` + `NET_RAW` are required. If you don't use network scanning, you can remove them via `web.containerSecurityContext.capabilities` — but ping will stop working |
-| **TLS** | Always use TLS in production via Ingress + cert-manager |
-| `automountServiceAccountToken` | Disabled by default (`false`) |
+| Area | Recommendation |
+|------|---------------|
+| **Default credentials** | Always change `database.password` and `mariadb.auth.rootPassword` in production |
+| **Existing secrets** | Use `database.existingSecret` and `mariadb.auth.existingSecret` — keep credentials out of `values.yaml` and version control |
+| **Image pinning** | Pin to a digest (`web.image.digest`) for immutable, auditable production deployments |
+| **Disable installer** | Set `app.disableInstaller: true` immediately after the first setup |
+| **Network isolation** | Enable `networkPolicy.enabled: true` to restrict traffic between components |
+| **Capabilities** | `NET_ADMIN` + `NET_RAW` are required for ping/SNMP. If you don't use network scanning, remove them via `web.containerSecurityContext.capabilities` — ping will stop working |
+| **TLS** | Always terminate TLS at the Ingress in production |
+| **Service account** | `automountServiceAccountToken: false` is set by default |
+
+---
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository and create a feature branch
+2. Test your changes with `helm lint .` and `helm template test .`
+3. Update [CHANGELOG.md](CHANGELOG.md) under `[Unreleased]`
+4. Open a Pull Request describing what changed and why
+
+---
+
+## License
+
+This chart is licensed under the [GNU General Public License v3.0](LICENSE).
+
+phpIPAM is © phpipam.net and is independently licensed under GPL-3.0.
