@@ -2,8 +2,18 @@ apiVersion: v2
 name: phpipam
 description: A Helm chart for phpIPAM - Open Source IP Address Management
 type: application
+
+# Chart version: bump this on every chart change following semver.
+# MAJOR: breaking values/behaviour changes.
+# MINOR: new features, backwards-compatible.
+# PATCH: bug fixes, doc updates.
 version: 0.1.0
-appVersion: "1.8.0"
+
+# appVersion tracks the default phpIPAM image tag.
+# Update when you want to ship a new phpIPAM release as the default.
+# Users can always override with web.image.tag / cron.image.tag.
+appVersion: "1.8"
+
 home: https://phpipam.net
 icon: https://phpipam.net/images/logo/phpipam-logo.png
 sources:
@@ -17,3 +27,6 @@ keywords:
 annotations:
   artifacthub.io/category: networking
   artifacthub.io/license: GPL-3.0
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial chart release with built-in MariaDB and external DB support

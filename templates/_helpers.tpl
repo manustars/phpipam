@@ -129,19 +129,44 @@ Database password key inside the secret.
 {{- end }}
 
 {{/*
-Web image (resolves global registry override).
+Web image.
+Resolution order: digest (immutable) > explicit tag > Chart.AppVersion.
 */}}
 {{- define "phpipam.web.image" -}}
-{{- $registry := coalesce .Values.global.imageRegistry .Values.web.image.registry "docker.io" }}
-{{- printf "%s/%s:%s" $registry .Values.web.image.repository .Values.web.image.tag }}
+{{- $registry := coalesce .Values.global.imageRegistry .Values.web.image.registry "docker.io" -}}
+{{- if .Values.web.image.digest -}}
+{{- printf "%s/%s@%s" $registry .Values.web.image.repository .Values.web.image.digest -}}
+{{- else -}}
+{{- $tag := default .Chart.AppVersion .Values.web.image.tag -}}
+{{- printf "%s/%s:%s" $registry .Values.web.image.repository $tag -}}
+{{- end -}}
 {{- end }}
 
 {{/*
-Cron image (resolves global registry override).
+Cron image.
+Resolution order: digest (immutable) > explicit tag > Chart.AppVersion.
 */}}
 {{- define "phpipam.cron.image" -}}
-{{- $registry := coalesce .Values.global.imageRegistry .Values.cron.image.registry "docker.io" }}
-{{- printf "%s/%s:%s" $registry .Values.cron.image.repository .Values.cron.image.tag }}
+{{- $registry := coalesce .Values.global.imageRegistry .Values.cron.image.registry "docker.io" -}}
+{{- if .Values.cron.image.digest -}}
+{{- printf "%s/%s@%s" $registry .Values.cron.image.repository .Values.cron.image.digest -}}
+{{- else -}}
+{{- $tag := default .Chart.AppVersion .Values.cron.image.tag -}}
+{{- printf "%s/%s:%s" $registry .Values.cron.image.repository $tag -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+MariaDB image.
+MariaDB versioning is independent from phpIPAM — always requires an explicit tag.
+*/}}
+{{- define "phpipam.mariadb.image" -}}
+{{- $registry := coalesce .Values.global.imageRegistry .Values.mariadb.image.registry "docker.io" -}}
+{{- if .Values.mariadb.image.digest -}}
+{{- printf "%s/%s@%s" $registry .Values.mariadb.image.repository .Values.mariadb.image.digest -}}
+{{- else -}}
+{{- printf "%s/%s:%s" $registry .Values.mariadb.image.repository .Values.mariadb.image.tag -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -193,14 +218,6 @@ MariaDB component selector labels.
 {{- define "phpipam.mariadb.selectorLabels" -}}
 {{ include "phpipam.selectorLabels" . }}
 app.kubernetes.io/component: database
-{{- end }}
-
-{{/*
-MariaDB image (resolves global registry override).
-*/}}
-{{- define "phpipam.mariadb.image" -}}
-{{- $registry := coalesce .Values.global.imageRegistry .Values.mariadb.image.registry "docker.io" -}}
-{{- printf "%s/%s:%s" $registry .Values.mariadb.image.repository .Values.mariadb.image.tag -}}
 {{- end }}
 
 {{/*

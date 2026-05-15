@@ -20,8 +20,14 @@ web:
     registry: docker.io
     ## @param web.image.repository phpIPAM web image repository
     repository: phpipam/phpipam-www
-    ## @param web.image.tag phpIPAM web image tag
-    tag: "latest"
+    ## @param web.image.tag phpIPAM web image tag.
+    ## Leave empty to use Chart.appVersion (e.g. "1.8").
+    ## Supported tags: latest, nightly, 1.8, 1.7, v1.8.x (static snapshots).
+    tag: ""
+    ## @param web.image.digest Image digest (sha256:...). Takes precedence over tag when set.
+    ## Use for immutable, production-grade deployments.
+    ## e.g. sha256:a1b2c3...
+    digest: ""
     ## @param web.image.pullPolicy Image pull policy
     pullPolicy: IfNotPresent
 
@@ -117,8 +123,11 @@ cron:
     registry: docker.io
     ## @param cron.image.repository phpIPAM cron image repository
     repository: phpipam/phpipam-cron
-    ## @param cron.image.tag phpIPAM cron image tag
-    tag: "latest"
+    ## @param cron.image.tag phpIPAM cron image tag.
+    ## Leave empty to use Chart.appVersion (stays in sync with web image).
+    tag: ""
+    ## @param cron.image.digest Image digest (sha256:...). Takes precedence over tag when set.
+    digest: ""
     ## @param cron.image.pullPolicy Image pull policy
     pullPolicy: IfNotPresent
 
@@ -358,8 +367,11 @@ mariadb:
     registry: docker.io
     ## @param mariadb.image.repository MariaDB image repository
     repository: mariadb
-    ## @param mariadb.image.tag MariaDB image tag
+    ## @param mariadb.image.tag MariaDB image tag. Must be explicit (not linked to appVersion).
+    ## Recommended tags: lts, 11.4, 10.11 (LTS versions).
     tag: "lts"
+    ## @param mariadb.image.digest Image digest (sha256:...). Takes precedence over tag when set.
+    digest: ""
     ## @param mariadb.image.pullPolicy Image pull policy
     pullPolicy: IfNotPresent
 
