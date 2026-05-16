@@ -1,19 +1,17 @@
 {{- if .Values.mariadb.enabled }}
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "phpipam.fullname" . }}-mariadb
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "phpipam.mariadb.labels" . | nindent 4 }}
 spec:
+  serviceName: {{ include "phpipam.fullname" . }}-mariadb-headless
   replicas: 1
   selector:
     matchLabels:
       {{- include "phpipam.mariadb.selectorLabels" . | nindent 6 }}
-  ## Recreate avoids two instances writing to the same PVC simultaneously
-  strategy:
-    type: Recreate
   template:
     metadata:
       labels:
@@ -101,14 +99,29 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/mysql
+            {{- if .Values.mariadb.mycnf }}
+            - name: config
+              mountPath: /etc/mysql/conf.d/custom.cnf
+              subPath: custom.cnf
+              readOnly: true
+            {{- end }}
+      {{- $needsVolumes := or .Values.mariadb.mycnf .Values.mariadb.persistence.existingClaim (not .Values.mariadb.persistence.enabled) }}
+      {{- if $needsVolumes }}
       volumes:
+        {{- if .Values.mariadb.mycnf }}
+        - name: config
+          configMap:
+            name: {{ include "phpipam.fullname" . }}-mariadb-config
+        {{- end }}
+        {{- if .Values.mariadb.persistence.existingClaim }}
         - name: data
-          {{- if .Values.mariadb.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ include "phpipam.mariadb.pvcName" . }}
-          {{- else }}
+            claimName: {{ .Values.mariadb.persistence.existingClaim }}
+        {{- else if not .Values.mariadb.persistence.enabled }}
+        - name: data
           emptyDir: {}
-          {{- end }}
+        {{- end }}
+      {{- end }}
       {{- with .Values.mariadb.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -121,4 +134,23 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+  {{- if and .Values.mariadb.persistence.enabled (not .Values.mariadb.persistence.existingClaim) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        {{- with .Values.mariadb.persistence.annotations }}
+        annotations:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      spec:
+        accessModes:
+          - {{ .Values.mariadb.persistence.accessMode | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.mariadb.persistence.size | quote }}
+        {{- $sc := coalesce .Values.mariadb.persistence.storageClass .Values.global.storageClass }}
+        {{- if $sc }}
+        storageClassName: {{ $sc | quote }}
+        {{- end }}
+  {{- end }}
 {{- end }}

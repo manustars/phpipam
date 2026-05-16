@@ -1,4 +1,5 @@
 {{- if .Values.mariadb.enabled }}
+## ClusterIP service — used by phpIPAM web/cron pods to reach MariaDB
 apiVersion: v1
 kind: Service
 metadata:
@@ -8,6 +9,24 @@ metadata:
     {{- include "phpipam.mariadb.labels" . | nindent 4 }}
 spec:
   type: ClusterIP
+  ports:
+    - port: {{ .Values.database.port }}
+      targetPort: mysql
+      protocol: TCP
+      name: mysql
+  selector:
+    {{- include "phpipam.mariadb.selectorLabels" . | nindent 4 }}
+---
+## Headless service — required by the StatefulSet for stable pod DNS
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "phpipam.fullname" . }}-mariadb-headless
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "phpipam.mariadb.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
   ports:
     - port: {{ .Values.database.port }}
       targetPort: mysql

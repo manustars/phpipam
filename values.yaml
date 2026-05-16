@@ -458,3 +458,12 @@ mariadb:
   args: []
   ## @param mariadb.extraEnv Extra environment variables for the MariaDB container
   extraEnv: []
+
+  ## @param mariadb.mycnf Custom MariaDB configuration injected as /etc/mysql/conf.d/custom.cnf.
+  ## Leave empty to use MariaDB defaults. Example:
+  ## mycnf: |
+  ##   [mysqld]
+  ##   innodb_buffer_pool_size = 256M
+  ##   character-set-server   = utf8mb4
+  ##   collation-server        = utf8mb4_unicode_ci
+  mycnf: ""

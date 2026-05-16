@@ -7,6 +7,21 @@ Chart version follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.1.2] — 2026-05-16
+
+### Changed
+- MariaDB Deployment replaced by StatefulSet for stable pod identity and ordered shutdown
+- MariaDB PVC moved to `volumeClaimTemplates` (survives `helm uninstall` without extra annotations)
+- Added headless Service (`-mariadb-headless`) required by the StatefulSet
+- Added `helm.sh/resource-policy: keep` on logo and CA PVCs to protect data on uninstall
+- Added `mariadb.mycnf` value: custom `my.cnf` injected via ConfigMap into the MariaDB container
+
+## [0.1.1] — 2026-05-16
+
+### Changed
+- `mariadb.enabled` defaults to `false` (external DB mode is the default)
+- Removed unused `artifacthub.io/*` annotations from `Chart.yaml`
+
 ## [0.1.0] — 2026-05-15
 
 ### Added

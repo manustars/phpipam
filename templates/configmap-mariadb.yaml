@@ -1,0 +1,12 @@
+{{- if and .Values.mariadb.enabled .Values.mariadb.mycnf }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "phpipam.fullname" . }}-mariadb-config
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "phpipam.mariadb.labels" . | nindent 4 }}
+data:
+  custom.cnf: |
+    {{- .Values.mariadb.mycnf | nindent 4 }}
+{{- end }}

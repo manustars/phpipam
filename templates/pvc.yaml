@@ -6,10 +6,11 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "phpipam.labels" . | nindent 4 }}
-  {{- with .Values.persistence.logo.annotations }}
   annotations:
+    helm.sh/resource-policy: keep
+    {{- with .Values.persistence.logo.annotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
 spec:
   accessModes:
     - {{ .Values.persistence.logo.accessMode | quote }}
@@ -30,10 +31,11 @@ metadata:
   namespace: {{ .Release.Namespace | quote }}
   labels:
     {{- include "phpipam.labels" . | nindent 4 }}
-  {{- with .Values.persistence.ca.annotations }}
   annotations:
+    helm.sh/resource-policy: keep
+    {{- with .Values.persistence.ca.annotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
 spec:
   accessModes:
     - {{ .Values.persistence.ca.accessMode | quote }}
@@ -41,30 +43,6 @@ spec:
     requests:
       storage: {{ .Values.persistence.ca.size | quote }}
   {{- $sc := coalesce .Values.persistence.ca.storageClass .Values.global.storageClass }}
-  {{- if $sc }}
-  storageClassName: {{ $sc | quote }}
-  {{- end }}
-{{- end }}
----
-{{- if and .Values.mariadb.enabled .Values.mariadb.persistence.enabled (not .Values.mariadb.persistence.existingClaim) }}
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ include "phpipam.fullname" . }}-mariadb-data
-  namespace: {{ .Release.Namespace | quote }}
-  labels:
-    {{- include "phpipam.mariadb.labels" . | nindent 4 }}
-  {{- with .Values.mariadb.persistence.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
-spec:
-  accessModes:
-    - {{ .Values.mariadb.persistence.accessMode | quote }}
-  resources:
-    requests:
-      storage: {{ .Values.mariadb.persistence.size | quote }}
-  {{- $sc := coalesce .Values.mariadb.persistence.storageClass .Values.global.storageClass }}
   {{- if $sc }}
   storageClassName: {{ $sc | quote }}
   {{- end }}

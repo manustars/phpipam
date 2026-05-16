@@ -7,7 +7,7 @@ type: application
 # MAJOR: breaking values/behaviour changes.
 # MINOR: new features, backwards-compatible.
 # PATCH: bug fixes, doc updates.
-version: 0.1.0
+version: 0.1.2
 
 # appVersion tracks the default phpIPAM image tag.
 # Update when you want to ship a new phpIPAM release as the default.
@@ -24,9 +24,3 @@ keywords:
   - networking
   - ip-management
   - network-management
-annotations:
-  artifacthub.io/category: networking
-  artifacthub.io/license: GPL-3.0
-  artifacthub.io/changes: |
-    - kind: added
-      description: Initial chart release with built-in MariaDB and external DB support
