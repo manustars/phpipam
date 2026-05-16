@@ -1,0 +1,120 @@
+{{- if and .Values.mariadb.enabled .Values.dbInit.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "phpipam.fullname" . }}-db-init
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "phpipam.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-init
+  annotations:
+    ## Run after install and after every upgrade so new schema migrations are applied.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    ## Delete the old Job before creating a new one; keep it on failure for debugging.
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.dbInit.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.dbInit.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "phpipam.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: db-init
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "phpipam.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      {{- $pullSecrets := concat (.Values.global.imagePullSecrets | default list) (.Values.imagePullSecrets | default list) }}
+      {{- if $pullSecrets }}
+      imagePullSecrets:
+        {{- range $pullSecrets }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      initContainers:
+        ## Step 1 — copy SCHEMA.sql out of the phpipam-www image.
+        - name: copy-schema
+          image: {{ include "phpipam.web.image" . }}
+          imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              SCHEMA=/var/www/html/db/SCHEMA.sql
+              if [ ! -f "$SCHEMA" ]; then
+                echo "ERROR: $SCHEMA not found in the phpipam-www image." >&2
+                exit 1
+              fi
+              cp "$SCHEMA" /schema/SCHEMA.sql
+              echo "SCHEMA.sql copied successfully."
+          volumeMounts:
+            - name: schema
+              mountPath: /schema
+
+        ## Step 2 — wait until MariaDB is accepting connections.
+        - name: wait-for-db
+          image: {{ include "phpipam.mariadb.image" . }}
+          imagePullPolicy: {{ .Values.mariadb.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              echo "Waiting for MariaDB at {{ include "phpipam.databaseHost" . }}:{{ .Values.database.port }}..."
+              until mysqladmin ping \
+                  -h {{ include "phpipam.databaseHost" . }} \
+                  -P {{ .Values.database.port }} \
+                  -u {{ .Values.database.user | quote }} \
+                  -p"${DB_PASSWORD}" \
+                  --silent --connect-timeout=5 2>/dev/null; do
+                echo "  not ready yet, retrying in 5s..."
+                sleep 5
+              done
+              echo "MariaDB is ready."
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "phpipam.secretName" . }}
+                  key: {{ include "phpipam.secretPasswordKey" . }}
+
+      containers:
+        ## Step 3 — import schema if the database has not been initialized yet.
+        - name: init-db
+          image: {{ include "phpipam.mariadb.image" . }}
+          imagePullPolicy: {{ .Values.mariadb.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              HOST={{ include "phpipam.databaseHost" . | quote }}
+              PORT={{ .Values.database.port }}
+              USER={{ .Values.database.user | quote }}
+              DBNAME={{ .Values.database.name | quote }}
+
+              echo "Checking whether phpIPAM schema already exists..."
+              if mysql -h "$HOST" -P "$PORT" -u "$USER" -p"${DB_PASSWORD}" \
+                  "$DBNAME" \
+                  -e "SELECT 1 FROM settings LIMIT 1;" > /dev/null 2>&1; then
+                echo "Schema already present — nothing to do."
+                exit 0
+              fi
+
+              echo "Importing phpIPAM schema into database '$DBNAME'..."
+              mysql -h "$HOST" -P "$PORT" -u "$USER" -p"${DB_PASSWORD}" \
+                  "$DBNAME" < /schema/SCHEMA.sql
+              echo "Schema imported successfully."
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "phpipam.secretName" . }}
+                  key: {{ include "phpipam.secretPasswordKey" . }}
+          volumeMounts:
+            - name: schema
+              mountPath: /schema
+
+      volumes:
+        - name: schema
+          emptyDir: {}
+{{- end }}

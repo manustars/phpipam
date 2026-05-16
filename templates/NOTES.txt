@@ -29,17 +29,51 @@ phpIPAM is running as ClusterIP. To access it locally:
 
 {{- end }}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FIRST-TIME SETUP
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Open the URL above and run the web installer.
-2. Use the database credentials:
-     Host:     {{ include "phpipam.databaseHost" . }}
-     Database: {{ .Values.database.name }}
-     User:     {{ .Values.database.user }}
+{{- if .Values.mariadb.enabled }}
 
-3. After setup, set app.disableInstaller=true in values and upgrade:
-     helm upgrade {{ .Release.Name }} {{ .Chart.Name }} --set app.disableInstaller=true
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BUILT-IN MARIADB
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+MariaDB is deployed as a container in this release.
+  Service: {{ include "phpipam.fullname" . }}-mariadb:{{ .Values.database.port }}
+  DB:      {{ .Values.database.name }}
+  User:    {{ .Values.database.user }}
+
+{{- if .Values.dbInit.enabled }}
+
+The db-init Job is running (or has run) to import the phpIPAM schema automatically.
+Check its status:
+  kubectl get job -n {{ .Release.Namespace }} {{ include "phpipam.fullname" . }}-db-init
+  kubectl logs -n {{ .Release.Namespace }} job/{{ include "phpipam.fullname" . }}-db-init -c init-db
+
+Once the Job completes, open phpIPAM in the browser — no web installer needed.
+After verifying the setup, disable the installer permanently:
+  helm upgrade {{ .Release.Name }} . --reuse-values --set app.disableInstaller=true
+{{- else }}
+Schema auto-init is disabled (dbInit.enabled=false).
+Run the web installer manually when you first open phpIPAM.
+{{- end }}
+
+{{- else }}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXTERNAL DATABASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{- if .Values.database.host }}
+Using external database at: {{ .Values.database.host }}:{{ .Values.database.port }}
+{{- else }}
+WARNING: database.host is not set. phpIPAM will not be able to connect.
+Set it with: --set database.host=<hostname>
+{{- end }}
+Ensure the database "{{ .Values.database.name }}" exists and the user "{{ .Values.database.user }}"
+has full privileges before opening phpIPAM:
+  CREATE DATABASE {{ .Values.database.name }};
+  GRANT ALL ON {{ .Values.database.name }}.* TO '{{ .Values.database.user }}'@'%';
+
+Then run the phpIPAM web installer. Once done:
+  helm upgrade {{ .Release.Name }} . --reuse-values --set app.disableInstaller=true
+
+{{- end }}
 
 {{- if .Values.autoscaling.enabled }}
 
@@ -47,31 +81,9 @@ FIRST-TIME SETUP
 MULTI-REPLICA NOTICE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HPA is enabled (min={{ .Values.autoscaling.minReplicas }}, max={{ .Values.autoscaling.maxReplicas }}).
-For consistent PHP sessions across replicas, configure phpIPAM to use
+For consistent PHP sessions across replicas configure phpIPAM to use
 database session storage: set $session_storage = "database"; in config.php.
-Shared volumes (logo, ca) also require ReadWriteMany storage class.
-{{- end }}
-
-{{- if .Values.mariadb.enabled }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BUILT-IN MARIADB
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MariaDB is deployed as a container in this release.
-  Pod:     {{ include "phpipam.fullname" . }}-mariadb-<hash>
-  Service: {{ include "phpipam.fullname" . }}-mariadb:{{ .Values.database.port }}
-  DB:      {{ .Values.database.name }}
-
-{{- else }}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EXTERNAL DATABASE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Using external database at: {{ .Values.database.host }}:{{ .Values.database.port }}
-Ensure the database "{{ .Values.database.name }}" exists and user "{{ .Values.database.user }}"
-has full privileges, e.g.:
-  CREATE DATABASE {{ .Values.database.name }};
-  GRANT ALL ON {{ .Values.database.name }}.* TO '{{ .Values.database.user }}'@'%';
+Shared volumes (logo, ca) also require a ReadWriteMany storage class.
 {{- end }}
 
 Check pod status:

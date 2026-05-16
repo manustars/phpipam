@@ -363,6 +363,18 @@ networkPolicy:
   ## @param networkPolicy.additionalEgress Extra egress rules
   additionalEgress: []
 
+## @section Database initialization Job
+## Only used when mariadb.enabled=true.
+dbInit:
+  ## @param dbInit.enabled Run a Helm post-install/post-upgrade Job that imports the
+  ## phpIPAM database schema into MariaDB. The Job is idempotent: it checks whether
+  ## the schema already exists and skips the import if it does.
+  enabled: true
+  ## @param dbInit.activeDeadlineSeconds Maximum time (seconds) the Job is allowed to run
+  activeDeadlineSeconds: 300
+  ## @param dbInit.backoffLimit Number of retries before the Job is marked as failed
+  backoffLimit: 5
+
 ## @section MariaDB (built-in container)
 ## NOTE: Credentials (name, user, password) are always read from the "database:" section
 ## below, regardless of whether mariadb.enabled is true or false. That section is the
@@ -370,14 +382,17 @@ networkPolicy:
 ## the phpIPAM web/cron pods.
 mariadb:
   ## @param mariadb.enabled Deploy MariaDB as a container within this chart.
-  ## Set to false to point phpIPAM at an existing external database.
+  ## Default is false — point phpIPAM at an existing external database.
   ## When false, configure the connection under the "database:" section:
   ##   database.host     — required, hostname or IP of the external DB
   ##   database.port     — default 3306
   ##   database.name     — database name
   ##   database.user     — database username
   ##   database.password — password (or use database.existingSecret)
-  enabled: true
+  ##
+  ## When true, a post-install Job automatically imports the phpIPAM schema
+  ## into MariaDB (controlled by dbInit.enabled).
+  enabled: false
 
   image:
     ## @param mariadb.image.registry MariaDB image registry

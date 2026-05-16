@@ -93,17 +93,16 @@ Service account name.
 {{- end }}
 
 {{/*
-Database host — uses bitnami mariadb service name when subchart is enabled,
-otherwise requires database.host to be set explicitly.
+Database host.
+When mariadb.enabled=true  → auto-resolved to the built-in service name.
+When mariadb.enabled=false → taken from database.host (must be set by the user).
 */}}
 {{- define "phpipam.databaseHost" -}}
-{{- if .Values.database.host }}
-{{- .Values.database.host }}
-{{- else if .Values.mariadb.enabled }}
-{{- printf "%s-mariadb" .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- fail "database.host is required when mariadb.enabled is false" }}
-{{- end }}
+{{- if .Values.mariadb.enabled -}}
+{{- printf "%s-mariadb" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- .Values.database.host -}}
+{{- end -}}
 {{- end }}
 
 {{/*
