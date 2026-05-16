@@ -205,8 +205,15 @@ serviceAccount:
   name: ""
 
 ## @section Database configuration
+## These values are used by BOTH modes:
+##   mariadb.enabled=true  → credentials injected into the built-in MariaDB container
+##                           AND into the phpIPAM web/cron pods.
+##   mariadb.enabled=false → connection parameters for an external database.
+## Only "database.host" is ignored when mariadb.enabled=true (the host is
+## auto-resolved from the internal service name).
 database:
-  ## @param database.host External database host (required when mariadb.enabled=false)
+  ## @param database.host External database host.
+  ## Required when mariadb.enabled=false. Ignored when mariadb.enabled=true.
   host: ""
   ## @param database.port Database port
   port: 3306
@@ -357,9 +364,19 @@ networkPolicy:
   additionalEgress: []
 
 ## @section MariaDB (built-in container)
+## NOTE: Credentials (name, user, password) are always read from the "database:" section
+## below, regardless of whether mariadb.enabled is true or false. That section is the
+## single source of truth for DB connectivity used by both the MariaDB container and
+## the phpIPAM web/cron pods.
 mariadb:
   ## @param mariadb.enabled Deploy MariaDB as a container within this chart.
-  ## Set to false to use an external database — in that case database.host is required.
+  ## Set to false to point phpIPAM at an existing external database.
+  ## When false, configure the connection under the "database:" section:
+  ##   database.host     — required, hostname or IP of the external DB
+  ##   database.port     — default 3306
+  ##   database.name     — database name
+  ##   database.user     — database username
+  ##   database.password — password (or use database.existingSecret)
   enabled: true
 
   image:
