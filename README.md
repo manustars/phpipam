@@ -4,7 +4,6 @@
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-%3E%3D1.23-326ce5?logo=kubernetes&logoColor=white)](https://kubernetes.io)
 [![phpIPAM](https://img.shields.io/badge/phpIPAM-1.8-4cae4c)](https://phpipam.net)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue)](LICENSE)
-[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/phpipam)](https://artifacthub.io)
 
 A production-ready Helm chart for **[phpIPAM](https://phpipam.net)** — Open Source IP Address Management.
 
@@ -47,7 +46,7 @@ This chart deploys phpIPAM on a Kubernetes cluster and includes:
 |-----------|-------------|
 | **web** | Apache/PHP frontend — scalable, supports multiple replicas |
 | **cron** | Network discovery daemon — always runs as a single replica |
-| **mariadb** | Optional built-in MariaDB container — or point to an external DB |
+| **mariadb** | Optional built-in MariaDB StatefulSet — or point to an external DB |
 
 ## Architecture
 
@@ -74,8 +73,8 @@ This chart deploys phpIPAM on a Kubernetes cluster and includes:
                          │
          ┌───────────────▼────────────────────────────────┐
          │  mariadb.enabled = true                         │
-         │    Deployment: mariadb  ──►  PVC: mariadb-data  │
-         │    Service: mariadb                             │
+         │    StatefulSet: mariadb ──► PVC: mariadb-data   │
+         │    Service: mariadb (ClusterIP + headless)      │
          ├────────────────────────────────────────────────┤
          │  mariadb.enabled = false                        │
          │    External database  (database.host required)  │
@@ -98,45 +97,59 @@ This chart deploys phpIPAM on a Kubernetes cluster and includes:
 ## Quick Start
 
 ```bash
-# Using the built-in MariaDB (default)
-helm install phpipam . -n ipam --create-namespace
+helm repo add phpipam https://manustars.github.io/phpipam
+helm repo update
 
-# Using an external database
-helm install phpipam . -n ipam --create-namespace \
-  --set mariadb.enabled=false \
+# With built-in MariaDB
+helm install phpipam phpipam/phpipam -n ipam --create-namespace \
+  --set mariadb.enabled=true \
+  --set database.password=changeme \
+  --set mariadb.auth.rootPassword=changeme-root
+
+# With an external database
+helm install phpipam phpipam/phpipam -n ipam --create-namespace \
   --set database.host=mydb.internal \
   --set database.password=mysecret
 ```
 
 ## Installing the Chart
 
-### 1. Prepare your values file
+### 1. Add the Helm repository
 
 ```bash
-cp values.yaml my-values.yaml
+helm repo add phpipam https://manustars.github.io/phpipam
+helm repo update
+```
+
+### 2. Prepare your values file
+
+```bash
+helm show values phpipam/phpipam > my-values.yaml
 # Edit my-values.yaml — at minimum change the passwords
 ```
 
-### 2. Install
+### 3. Install
 
 ```bash
-helm install phpipam . \
+helm install phpipam phpipam/phpipam \
   --namespace ipam \
   --create-namespace \
   --values my-values.yaml
 ```
 
-### 3. First-time setup
+### 4. First-time setup
 
-Open phpIPAM in the browser and follow the web installer:
+If `mariadb.enabled=true` and `dbInit.enabled=true` (both default), the chart automatically
+imports the phpIPAM schema via a post-install Job — no web installer needed.
 
-1. Choose **"Automatic database installation"**
-2. Enter the credentials from the `helm install` output notes
-3. After setup is complete, disable the installer:
+Once the Job completes, disable the installer permanently:
 
 ```bash
-helm upgrade phpipam . --reuse-values --set app.disableInstaller=true
+helm upgrade phpipam phpipam/phpipam --reuse-values --set app.disableInstaller=true
 ```
+
+If you are using an external database, open phpIPAM in the browser and follow the web
+installer, then run the command above.
 
 ## Uninstalling the Chart
 
@@ -144,8 +157,8 @@ helm upgrade phpipam . --reuse-values --set app.disableInstaller=true
 helm uninstall phpipam -n ipam
 ```
 
-> **Warning:** PersistentVolumeClaims are **not** deleted automatically.
-> Remove them manually when no longer needed:
+> **Warning:** PersistentVolumeClaims are protected with `helm.sh/resource-policy: keep`
+> and are **not** deleted automatically on uninstall. Remove them manually when no longer needed:
 >
 > ```bash
 > kubectl delete pvc -n ipam -l app.kubernetes.io/instance=phpipam
@@ -269,7 +282,7 @@ helm uninstall phpipam -n ipam
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `mariadb.enabled` | Deploy MariaDB as a container within this chart | `true` |
+| `mariadb.enabled` | Deploy MariaDB as a StatefulSet within this chart | `false` |
 | `mariadb.image.repository` | MariaDB image repository | `mariadb` |
 | `mariadb.image.tag` | MariaDB image tag | `lts` |
 | `mariadb.image.digest` | Image digest — takes precedence over tag | `""` |
@@ -280,6 +293,7 @@ helm uninstall phpipam -n ipam
 | `mariadb.persistence.size` | PVC size | `8Gi` |
 | `mariadb.persistence.storageClass` | StorageClass override | `""` |
 | `mariadb.persistence.existingClaim` | Use an existing PVC | `""` |
+| `mariadb.mycnf` | Custom MariaDB configuration (`my.cnf` content) | `""` |
 | `mariadb.resources` | CPU/memory requests and limits | see [values.yaml](values.yaml) |
 | `mariadb.args` | Extra arguments passed to the MariaDB process | `[]` |
 | `mariadb.extraEnv` | Extra environment variables for the MariaDB container | `[]` |
@@ -287,6 +301,8 @@ helm uninstall phpipam -n ipam
 > `database.password` is the **single source of truth** for the DB user password.
 > It is used by both the MariaDB container (`MARIADB_PASSWORD`) and the phpIPAM
 > web/cron containers (`IPAM_DATABASE_PASS`).
+
+> MariaDB data PVCs created via `volumeClaimTemplates` survive `helm uninstall` by design.
 
 ### Autoscaling, PDB, NetworkPolicy
 
@@ -350,12 +366,6 @@ cron:
     digest: "sha256:def456..."
 ```
 
-### Upgrade phpIPAM to a new version
-
-1. Update `appVersion` in `Chart.yaml` and bump `version` following semver.
-2. Leave `web.image.tag` and `cron.image.tag` empty — they will follow `appVersion`.
-3. Run `helm upgrade`.
-
 ---
 
 ## Use Cases
@@ -363,7 +373,6 @@ cron:
 ### External database
 
 ```yaml
-# values.yaml
 mariadb:
   enabled: false
 
@@ -390,6 +399,18 @@ database:
   host: "mydb.internal"
   existingSecret: "phpipam-db-secret"
   existingSecretPasswordKey: "database-password"
+```
+
+### Custom MariaDB configuration
+
+```yaml
+mariadb:
+  enabled: true
+  mycnf: |
+    [mysqld]
+    innodb_buffer_pool_size = 256M
+    character-set-server   = utf8mb4
+    collation-server        = utf8mb4_unicode_ci
 ```
 
 ### Ingress with TLS via cert-manager
@@ -469,19 +490,19 @@ Refer to [CHANGELOG.md](CHANGELOG.md) for breaking changes before upgrading.
 ### General upgrade
 
 ```bash
-helm upgrade phpipam . --namespace ipam --reuse-values
+helm repo update
+helm upgrade phpipam phpipam/phpipam --namespace ipam --reuse-values
 ```
 
 ### Upgrading phpIPAM (application version)
 
 1. Read the [phpIPAM release notes](https://phpipam.net/news/) for any required database migrations.
 2. **Back up the database** before proceeding.
-3. Upgrade with the new version:
+3. Upgrade to the chart version that ships the new phpIPAM release:
 
 ```bash
-helm upgrade phpipam . --namespace ipam --reuse-values \
-  --set web.image.tag=1.8 \
-  --set cron.image.tag=1.8
+helm repo update
+helm upgrade phpipam phpipam/phpipam --namespace ipam --reuse-values --version <chart-version>
 ```
 
 phpIPAM runs database migrations automatically on the first boot after a version change.
@@ -513,7 +534,7 @@ kubectl label namespace ipam \
 kubectl get pods -n ipam -l app.kubernetes.io/component=database
 
 # Check MariaDB logs
-kubectl logs -n ipam deployment/phpipam-mariadb
+kubectl logs -n ipam statefulset/phpipam-mariadb
 
 # Verify the password in the secret
 kubectl get secret phpipam-db-credentials -n ipam \
@@ -529,14 +550,14 @@ the latest configuration.
 ### PVC stuck in `Pending`
 
 ```bash
-kubectl describe pvc -n ipam phpipam-mariadb-data
+kubectl describe pvc -n ipam
 ```
 
 Ensure a default StorageClass exists, or set one explicitly:
 
 ```bash
 kubectl get storageclass
-helm upgrade phpipam . --reuse-values --set global.storageClass=standard
+helm upgrade phpipam phpipam/phpipam --reuse-values --set global.storageClass=standard
 ```
 
 ### phpIPAM reports the wrong source IP behind a reverse proxy
@@ -565,7 +586,7 @@ Set `app.trustXForwardedFor: true` to enable `IPAM_TRUST_X_FORWARDED`.
 Contributions are welcome! Please:
 
 1. Fork the repository and create a feature branch
-2. Test your changes with `helm lint .` and `helm template test .`
+2. Clone locally and test with `helm lint .` and `helm template test .`
 3. Update [CHANGELOG.md](CHANGELOG.md) under `[Unreleased]`
 4. Open a Pull Request describing what changed and why
 
