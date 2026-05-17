@@ -1,0 +1,35 @@
+name: Lint Helm Chart
+
+on:
+  pull_request:
+    paths:
+      - Chart.yaml
+      - values.yaml
+      - templates/**
+      - .helmignore
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint
+        run: helm lint .
+
+      - name: Template render check
+        run: |
+          helm template phpipam . \
+            --set mariadb.enabled=true \
+            --set database.password=test \
+            --set mariadb.auth.rootPassword=test \
+            > /dev/null
+          helm template phpipam . \
+            --set mariadb.enabled=false \
+            --set database.host=external-db \
+            --set database.password=test \
+            > /dev/null
