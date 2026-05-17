@@ -8,6 +8,8 @@ on:
       - values.yaml
       - templates/**
       - .helmignore
+      - .github/workflows/release.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
