@@ -75,5 +75,5 @@ jobs:
           else
             VERSION=$(grep '^version:' "$GITHUB_WORKSPACE/Chart.yaml" | awk '{print $2}')
             git commit -m "chore: publish chart v${VERSION}"
-            git push origin gh-pages
+            git push origin HEAD:gh-pages
           fi
