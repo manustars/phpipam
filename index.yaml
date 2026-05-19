@@ -3,9 +3,9 @@ entries:
   phpipam:
   - apiVersion: v2
     appVersion: 1.8x
-    created: "2026-05-19T21:47:14.3613555+02:00"
+    created: "2026-05-19T20:28:31.598366525Z"
     description: A Helm chart for phpIPAM - Open Source IP Address Management
-    digest: 7889a34a830df54f4a6e94b86c23f9df3032a46122eae5c7672ab54fe8117570
+    digest: 5c6f468e9280221e43e6d3a461e04a97f2981a4cfc11d795021119182e3a5729
     home: https://phpipam.net
     icon: https://phpipam.net/images/logo/phpipam-logo.png
     keywords:
@@ -21,4 +21,4 @@ entries:
     urls:
     - https://manustars.github.io/phpipam/phpipam-0.1.10.tgz
     version: 0.1.10
-generated: "2026-05-19T21:47:14.3552515+02:00"
+generated: "2026-05-19T20:28:31.596793469Z"
