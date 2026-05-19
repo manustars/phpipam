@@ -64,13 +64,14 @@ spec:
             - /bin/bash
             - -ec
             - |
-              echo "Waiting for MariaDB at {{ include "phpipam.databaseHost" . }}:{{ .Values.database.port }}..."
-              until mysqladmin ping \
-                  -h {{ include "phpipam.databaseHost" . }} \
-                  -P {{ .Values.database.port }} \
+              HOST={{ include "phpipam.databaseHost" . }}
+              PORT={{ .Values.database.port }}
+              echo "Waiting for MariaDB at $HOST:$PORT..."
+              until mariadb -h "$HOST" -P "$PORT" \
                   -u {{ .Values.database.user | quote }} \
                   -p"${DB_PASSWORD}" \
-                  --silent --connect-timeout=5 2>/dev/null; do
+                  --connect-timeout=5 \
+                  -e "SELECT 1;" > /dev/null 2>&1; do
                 echo "  not ready yet, retrying in 5s..."
                 sleep 5
               done

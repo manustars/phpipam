@@ -373,7 +373,7 @@ dbInit:
   ## the schema already exists and skips the import if it does.
   enabled: true
   ## @param dbInit.activeDeadlineSeconds Maximum time (seconds) the Job is allowed to run
-  activeDeadlineSeconds: 300
+  activeDeadlineSeconds: 600
   ## @param dbInit.backoffLimit Number of retries before the Job is marked as failed
   backoffLimit: 5
 
