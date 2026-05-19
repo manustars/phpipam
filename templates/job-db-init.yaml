@@ -41,12 +41,16 @@ spec:
             - /bin/sh
             - -ec
             - |
-              SCHEMA=/var/www/html/db/SCHEMA.sql
-              if [ ! -f "$SCHEMA" ]; then
-                echo "ERROR: $SCHEMA not found in the phpipam-www image." >&2
+              SCHEMA=""
+              for P in /phpipam/db/SCHEMA.sql /var/www/html/db/SCHEMA.sql; do
+                [ -f "$P" ] && SCHEMA="$P" && break
+              done
+              if [ -z "$SCHEMA" ]; then
+                echo "ERROR: SCHEMA.sql not found in the phpipam-www image." >&2
                 exit 1
               fi
               cp "$SCHEMA" /schema/SCHEMA.sql
+              echo "Copied from $SCHEMA"
               echo "SCHEMA.sql copied successfully."
           volumeMounts:
             - name: schema

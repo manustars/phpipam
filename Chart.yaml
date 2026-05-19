@@ -7,7 +7,7 @@ type: application
 # MAJOR: breaking values/behaviour changes.
 # MINOR: new features, backwards-compatible.
 # PATCH: bug fixes, doc updates.
-version: 0.1.7
+version: 0.1.8
 
 # appVersion tracks the default phpIPAM image tag.
 # Update when you want to ship a new phpIPAM release as the default.
