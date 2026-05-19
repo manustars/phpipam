@@ -98,7 +98,7 @@ spec:
               DBNAME={{ .Values.database.name | quote }}
 
               echo "Checking whether phpIPAM schema already exists..."
-              if mysql -h "$HOST" -P "$PORT" -u "$USER" -p"${DB_PASSWORD}" \
+              if mariadb -h "$HOST" -P "$PORT" -u "$USER" -p"${DB_PASSWORD}" \
                   "$DBNAME" \
                   -e "SELECT 1 FROM settings LIMIT 1;" > /dev/null 2>&1; then
                 echo "Schema already present — nothing to do."
@@ -106,7 +106,7 @@ spec:
               fi
 
               echo "Importing phpIPAM schema into database '$DBNAME'..."
-              mysql -h "$HOST" -P "$PORT" -u "$USER" -p"${DB_PASSWORD}" \
+              mariadb -h "$HOST" -P "$PORT" -u "$USER" -p"${DB_PASSWORD}" \
                   "$DBNAME" < /schema/SCHEMA.sql
               echo "Schema imported successfully."
           env:
